@@ -79,7 +79,7 @@ bot.on('text', async ctx => {
 
   try {
     const resp = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'openai/gpt-4o',
       messages: [
         { role:'system', content: systemPrompt },
         { role:'user',   content: txt }

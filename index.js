@@ -79,7 +79,7 @@ bot.on('text', async ctx => {
 
   try {
     const resp = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: 'openai/gpt-3.5-turbo',
       messages: [
         { role:'system', content: systemPrompt },
         { role:'user',   content: txt }

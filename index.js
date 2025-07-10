@@ -85,7 +85,7 @@ bot.on('text', async ctx => {
         { role:'user',   content: txt }
       ],
       temperature: 0.7,
-      max_tokens: 100
+      max_tokens: 200
     });
     const answer = resp.choices[0].message.content.trim();
     return ctx.reply(answer);

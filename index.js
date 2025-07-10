@@ -1,4 +1,3 @@
-// index.js
 import 'dotenv/config';
 import express     from 'express';
 import { Telegraf } from 'telegraf';
@@ -8,7 +7,7 @@ const {
   TELEGRAM_TOKEN,
   OPENROUTER_API_KEY,
   DOMAIN,
-  PORT = 3000
+  PORT = 8080
 } = process.env;
 
 if (!TELEGRAM_TOKEN || !OPENROUTER_API_KEY || !DOMAIN) {
@@ -42,7 +41,8 @@ bot.start(ctx => {
   const keys = Object.keys(services);
   const keyboard = keys.map(k => ([{ text: k }]));
   return ctx.reply(
-    '👋 Здравствуйте! Выберите услугу или задайте вопрос:',
+    '👋 Здравствуйте!Я ваш помощник. Помогу быстро и просто оформить страховку.
+Пожалуйста, выберите интересующую вас услугу или задайте вопрос',
     { reply_markup:{ keyboard, resize_keyboard:true } }
   );
 });

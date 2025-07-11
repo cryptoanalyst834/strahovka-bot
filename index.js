@@ -56,7 +56,7 @@ const outsideWidgetResponse = `
 const outsideTriggers = ['ТОТАЛ','УГОН','КАСКО ПО РИСКАМ','ДМС','СТРАХОВАНИЕ БИЗНЕСА'];
 
 // 7) Ключевые слова по теме
-const insuranceKeywords = ['ОСАГО','КАСКО','ДМС','ИПОТЕКА','ИМУЩЕСТВО','СТРАХОВАНИЕ','ПОЛИС','ДОКУМЕНТЫ','ДТП'];
+const insuranceKeywords = ['ОСАГО','СТРАХОВКА','КАСКО','ДМС','ИПОТЕКА','ИМУЩЕСТВО','СТРАХОВАНИЕ','ПОЛИС','ДОКУМЕНТЫ','ДТП'];
 
 // 8) /start — главное меню
 bot.start(ctx => {
@@ -110,7 +110,7 @@ bot.on('text', async ctx => {
 
   try {
     const resp = await openai.chat.completions.create({
-      model:       'openai/gpt-3.5-turbo',
+      model:       'openai/gpt-4o',
       messages:    [
         { role:'system', content:systemPrompt.trim() },
         { role:'user',   content:txt }

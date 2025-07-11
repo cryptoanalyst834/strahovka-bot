@@ -133,7 +133,7 @@ bot.on('text', async ctx => {
 
   const firstTime = !privacyMentioned.get(chatId);
   let systemPrompt = `
-Ты — виртуальный sales-ассистент Straxovka-Go, эксперт по страхованию, имеешь опыт работы марткетологом более 5 лет. Ведешь и поддерживаешь диалог с клиентом.
+Ты — виртуальный sales-ассистент Straxovka-Go, эксперт по страхованию, имеешь опыт работы марткетологом более 5 лет. Ведешь и поддерживаешь диалог с клиентом. Общаешься дружелюбно.
 Цели:
 • Закрыть страхи и боли клиента.
 • Показать выгоды (экономия, скорость).
@@ -247,7 +247,7 @@ https://straxovka-go.ru/privacy
       model:       'openai/gpt-4o', // or your OpenRouter endpoint
       messages,
       temperature: 0.7,
-      max_tokens: 120
+      max_tokens: 150
     });
     const answer = resp.choices[0].message.content.trim();
     session.history.push({ role:'assistant', content:answer });

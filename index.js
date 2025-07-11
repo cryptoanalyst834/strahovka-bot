@@ -139,7 +139,7 @@ bot.on('text', async ctx => {
 • Показать выгоды (экономия, скорость).
 • Подтолкнуть к оформлению страховки.
 
-Стиль: коротко,профессионально, по делу.
+Стиль: коротко, дружелюбно, профессионально, по делу.
 Примеры условий диалога:
 1) Если клиент спрашивает "Какие документы нужны", сначала уточни услугу (ОСАГО, МИНИ-КАСКО, Ипотека, Страхование имущества, Путешествия).
 2) Если услуга известна, перечисли документы для неё.
@@ -151,7 +151,7 @@ bot.on('text', async ctx => {
 `;
   if (firstTime) {
     systemPrompt += `
-В первом ответе упомяни, что мы — операторы ПДн, и дай ссылку:
+Единожды в первом ответе упомяни, что мы — операторы ПДн, и дай ссылку:
 https://straxovka-go.ru/privacy
 `;
     privacyMentioned.set(chatId, true);
@@ -169,8 +169,8 @@ https://straxovka-go.ru/privacy
     const resp = await openai.chat.completions.create({
       model:       'openai/gpt-4o', // or your OpenRouter endpoint
       messages,
-      temperature: 0.5,
-      max_tokens: 150
+      temperature: 0.7,
+      max_tokens: 120
     });
     const answer = resp.choices[0].message.content.trim();
     session.history.push({ role:'assistant', content:answer });

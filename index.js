@@ -1,8 +1,8 @@
 // index.js
 import 'dotenv/config';
-import express   from 'express';
-import { Telegraf } from 'telegraf';
-import OpenAI    from 'openai';
+import express           from 'express';
+import { Telegraf }      from 'telegraf';
+import OpenAI            from 'openai';
 
 const {
   TELEGRAM_TOKEN,
@@ -12,15 +12,15 @@ const {
 } = process.env;
 
 if (!TELEGRAM_TOKEN || !OPENROUTER_API_KEY || !DOMAIN) {
-  console.error('❌ Задайте TELEGRAM_TOKEN, OPENROUTER_API_KEY и DOMAIN в env');
+  console.error('❌ Set TELEGRAM_TOKEN, OPENROUTER_API_KEY and DOMAIN in env');
   process.exit(1);
 }
 
-// In‐memory stores per chat
-const privacyMentioned = new Map();
+// simple in-memory session & privacy tracking
 const sessions = new Map();
+const privacyMentioned = new Map();
 
-// 1) Express + healthcheck + webhook
+// 1) Express + healthcheck + webhook endpoint
 const app = express();
 app.use(express.json());
 app.get('/', (_req, res) => res.send('OK'));
@@ -34,7 +34,7 @@ const openai = new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1'
 });
 
-// 4) Виджеты
+// 4) Widget links
 const services = {
   "ОСАГО":                   "https://widgets.inssmart.ru/contract/eosago?appId=bbac9045-39c4-5530-a953-d63f4d081fe0&secret=2d2759bd-a1b0-57a7-803b-520c1a262740",
   "МИНИ-КАСКО":              "https://widgets.inssmart.ru/contract/kasko?appId=293563a6-dcb8-543c-84a7-7a455578884f&secret=5d05ad7d-7fc6-58b8-8851-6de24394a0a6",
@@ -43,70 +43,88 @@ const services = {
   "Путешествия":             "https://widgets.inssmart.ru/contract/travel?appId=a8bf576a-c303-5c66-8952-5a2a5bcf0b04&secret=95f250f5-b561-5593-99ad-575fec648e4c"
 };
 
-// 5) «Вне виджетов»
+// 5) Off-widget topics
 const outsideTriggers = [
-  "КАСКО ПО РИСКАМ","ТОТАЛ","УГОН",
-  "ДМС","СТРАХОВАНИЕ БИЗНЕСА"
+  "КАСКО ПО РИСКАМ","ТОТАЛ","УГОН","ДМС","СТРАХОВАНИЕ БИЗНЕСА"
 ];
 const outsideWidgetResponse = `
-К сожалению, этот вид онлайн-оформления не поддерживается.  
-Пожалуйста, свяжитесь с нами для подбора:
+К сожалению, этот вид онлайн-оформления не поддерживается.
+Свяжитесь с нами:
 
 📧 info@straxovka-go.ru  
 🌐 https://straxovka-go.ru  
 📱 WhatsApp: +7 989 120 66 37
-
 `.trim();
 
-// 6) Ключевые слова
+// 6) Insurance keywords
 const insuranceKeywords = [
-  "ОСАГО","КАСКО","ДМС","СТРАХОВКА","ПУТЕШЕСТВИЕ","СТОИМОСТЬ","ИПОТЕКА",
-  "ИМУЩЕСТВО","СТРАХОВАНИЕ","ПОЛИС",
-  "ДОКУМЕНТ","ДТП","СТРАХОВАНИЕ ИМУЩЕСТВА","СТРАХОВАНИЕ ПУТЕШЕСТВИЯ"
+  "ОСАГО","КАСКО","ДМС","ИПОТЕКА","ИМУЩЕСТВО",
+  "СТРАХОВАНИЕ","ПОЛИС","ДОКУМЕНТ","ДТП","СТОИМОСТЬ","ПУТЕШЕСТВИЕ"
 ];
 
-// 7) /start
+// 7) Topics to block
+const blockedTopics = [
+  // politics
+  "ПОЛИТИКА","ПРАВИТЕЛЬСТВО","ВЫБОРЫ","МИЛИТАР","ВОЙНА",
+  // religion
+  "БОГ","ЦЕРКОВЬ","РЕЛИГИЯ","МОЛИТВА","ИСТИНО","СВЯТОЕ",
+  // medicine
+  "ЛЕКАРСТВО","БОЛЕЗН","МЕДИЦИН","ВРАЧ","ЛЕЧЕНИЕ"
+];
+const blockedResponse = `
+Извините, я не могу обсуждать эту тему.
+Если нужны консультации, пожалуйста, свяжитесь с нами:
+📧 info@straxovka-go.ru  
+🌐 https://straxovka-go.ru  
+`.trim();
+
+// 8) /start — menu
 bot.start(ctx => {
   const keyboard = Object.keys(services).map(k => ([{ text: k }]));
   return ctx.reply(
-    '👋 Здравствуйте! Я ваш виртуальный помошник. ' +
-    'Выберите услугу или задайте вопрос:',
+    "👋 Здравствуйте! Я ваш виртуальный помощник. " +
+    "Выберите услугу или задайте вопрос:",
     { reply_markup:{ keyboard, resize_keyboard:true } }
   );
 });
 
-// 8) Webhook
+// 9) Webhook
 app.post('/webhook', (req, res) => {
   bot.handleUpdate(req.body, res).catch(console.error);
 });
 
-// 9) Текст
+// 10) Text handler
 bot.on('text', async ctx => {
   const txt = ctx.message.text.trim();
   const chatId = String(ctx.chat.id);
   const upper = txt.toUpperCase();
 
-  // 9.1 меню-кнопка
+  // 10.1 widget button
   if (services[txt]) {
     return ctx.replyWithHTML(
       `Оформление <b>${txt}</b> здесь:`,
-      { reply_markup:{ inline_keyboard:[
-        [{ text:'▶ Открыть виджет', url:services[txt] }]
-      ] } }
+      { reply_markup:{ inline_keyboard:
+        [[{ text:'▶ Открыть виджет', url:services[txt] }]]
+      } }
     );
   }
 
-  // 9.2 «вне-виджетные»
+  // 10.2 off-widget
   if (outsideTriggers.some(tr => upper.includes(tr))) {
     return ctx.reply(outsideWidgetResponse);
   }
 
-  // 9.3 не про страхование
+  // 10.3 blocked topics
+  if (blockedTopics.some(bt => upper.includes(bt))) {
+    return ctx.reply(blockedResponse);
+  }
+
+  // 10.4 not insurance → off-widget
   if (!insuranceKeywords.some(kw => upper.includes(kw))) {
     return ctx.reply(outsideWidgetResponse);
   }
 
-  // 9.4 AI-сессия
+  // 10.5 AI session
   let session = sessions.get(chatId);
   if (!session) {
     session = { history: [] };
@@ -114,25 +132,27 @@ bot.on('text', async ctx => {
   }
   session.history.push({ role:'user', content:txt });
 
-  // Формируем system prompt
   const firstTime = !privacyMentioned.get(chatId);
   let systemPrompt = `
-Ты — виртуальный sales-ассистент Straxovka-Go, эксперт по страхованию с навыками маркетолога более 5 лет. Отвечаешь на все вопросы по теме страхования. Поддерживаешь диалог, помнишь диалог с ведешь к продаже.
-Твоя цель — быстро продать полис, закрыть страхи и боли клиента:
-— Покажи эмпатию, но не навязчиво: «Понимаю ваши опасения…»
-— Расскажи выгоды: «Это сэкономит вам до 30%…»
-— Драйв к действию: «Нажмите кнопку оформления»
+Ты — виртуальный sales-ассистент Straxovka-Go, эксперт по страхованию.
+Цели:
+• Закрыть страхи и боли клиента.
+• Показать выгоды (экономия, скорость).
+• Подтолкнуть к кнопке «Открыть виджет».
+
+Стиль: коротко, дружелюбно, по делу.
 `;
   if (firstTime) {
     systemPrompt += `
-В этом ответе упомяни, что мы — операторы ПДн, и дай ссылку: https://straxovka-go.ru/privacy
+В первом ответе упомяни, что мы — операторы ПДн, и дай ссылку:
+https://straxovka-go.ru/privacy
 `;
     privacyMentioned.set(chatId, true);
   } else {
-    systemPrompt += `\nНе упоминай политику повторно.`;
+    systemPrompt += "\nНе упоминай политику повторно.";
   }
 
-  // Собираем сообщения
+  // build messages
   const messages = [
     { role:'system', content:systemPrompt.trim() },
     ...session.history
@@ -140,22 +160,21 @@ bot.on('text', async ctx => {
 
   try {
     const resp = await openai.chat.completions.create({
-      model:       'openai/gpt-4o',  // замените на доступную модель OpenRouter
+      model:       'openai/gpt-3.5-turbo', // or your OpenRouter endpoint
       messages,
-      temperature: 0.7,
-      max_tokens: 180
+      temperature: 0.6,
+      max_tokens: 200
     });
     const answer = resp.choices[0].message.content.trim();
-    // Добавляем в историю
     session.history.push({ role:'assistant', content:answer });
     return ctx.reply(answer);
   } catch (err) {
-    console.error('OpenRouter Error:', err);
-    return ctx.reply('Упс, ошибка при обращении к модели. Попробуйте позже.');
+    console.error("OpenRouter Error:", err);
+    return ctx.reply("Упс, ошибка при обращении к модели. Попробуйте позже.");
   }
 });
 
-// 10) Запуск + webhook
+// 11) Launch + webhook
 app.listen(PORT, async () => {
   console.log(`🌐 HTTP server on port ${PORT}`);
   await bot.telegram.setWebhook(`${DOMAIN}/webhook`);

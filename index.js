@@ -254,7 +254,7 @@ https://straxovka-go.ru/privacy
 
   try {
     const r = await openai.chat.completions.create({
-      model:       'gpt-4o-mini',
+      model:       'openai/gpt-4o-mini',
       messages:    msgs,
       temperature: 0.6,
       max_tokens: 200

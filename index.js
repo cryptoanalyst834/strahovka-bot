@@ -161,7 +161,7 @@ https://straxovka-go.ru/privacy
     const resp = await openai.chat.completions.create({
       model:       'openai/gpt-4o', // or your OpenRouter endpoint
       messages,
-      temperature: 0.6,
+      temperature: 0.9,
       max_tokens: 200
     });
     const answer = resp.choices[0].message.content.trim();

@@ -56,8 +56,6 @@ const outsideWidgetResponse = `
 🌐 https://straxovka-go.ru  
 📱 WhatsApp: +7 989 120 66 37
 
-Мы — операторы ПДн.  
-Политика конфиденциальности: https://straxovka-go.ru/privacy
 `.trim();
 
 // 6) Ключевые слова

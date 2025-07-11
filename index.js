@@ -159,7 +159,7 @@ https://straxovka-go.ru/privacy
 
   try {
     const resp = await openai.chat.completions.create({
-      model:       'openai/gpt-3.5-turbo', // or your OpenRouter endpoint
+      model:       'openai/gpt-4o', // or your OpenRouter endpoint
       messages,
       temperature: 0.6,
       max_tokens: 200

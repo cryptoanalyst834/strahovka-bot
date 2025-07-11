@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import express           from 'express';
-import { Telegraf, session } from 'telegraf';
-import OpenAI            from 'openai';
+import express        from 'express';
+import { Telegraf }   from 'telegraf';
+import OpenAI         from 'openai';
 
 const {
   TELEGRAM_TOKEN,
@@ -15,16 +15,18 @@ if (!TELEGRAM_TOKEN || !OPENROUTER_API_KEY || !DOMAIN) {
   process.exit(1);
 }
 
-// 1) Express + healthcheck + webhook endpoint
+// in-memory storage для упоминания политики
+const privacyMentioned = new Map();
+
+// 1) Express + healthcheck
 const app = express();
 app.use(express.json());
-app.get('/', (_req, res) => res.send('OK'));   // Railway healthcheck
+app.get('/', (_req, res) => res.send('OK'));
 
-// 2) Telegraf bot + session
+// 2) Telegraf bot
 const bot = new Telegraf(TELEGRAM_TOKEN);
-bot.use(session());
 
-// 3) OpenRouter client
+// 3) OpenRouter клиент
 const openai = new OpenAI({
   apiKey:  OPENROUTER_API_KEY,
   baseURL: 'https://openrouter.ai/api/v1'
@@ -32,85 +34,94 @@ const openai = new OpenAI({
 
 // 4) Виджет-ссылки
 const services = {
-  "ОСАГО":                   "https://widgets.inssmart.ru/contract/eosago?appId=bbac9045-39c4-5530-a953-d63f4d081fe0&secret=2d2759bd-a1b0-57a7-803b-520c1a262740",
-  "МИНИ-КАСКО":              "https://widgets.inssmart.ru/contract/kasko?appId=293563a6-dcb8-543c-84a7-7a455578884f&secret=5d05ad7d-7fc6-58b8-8851-6de24394a0a6",
-  "Ипотека":                 "https://widgets.inssmart.ru/contract/mortgage?appId=e06a1d3f-604c-52d2-bc8a-b9b8e2e7e167&secret=695aa6ff-001b-52ec-99de-0dbd38762b93",
-  "Страхование имущества":   "https://widgets.inssmart.ru/contract/property?appId=34daded4-ba8c-5e60-883b-bddd168b35b0&secret=ff271c00-fb5a-5de2-9b9e-fcfb8660da84",
-  "Путешествия":             "https://widgets.inssmart.ru/contract/travel?appId=a8bf576a-c303-5c66-8952-5a2a5bcf0b04&secret=95f250f5-b561-5593-99ad-575fec648e4c"
+  "ОСАГО":                 "https://widgets.inssmart.ru/contract/eosago?appId=bbac9045…&secret=2d2759b…",
+  "МИНИ-КАСКО":            "https://widgets.inssmart.ru/contract/kasko?appId=293563a…&secret=5d05a…",
+  "Ипотека":               "https://widgets.inssmart.ru/contract/mortgage?appId=e06a1…&secret=695a…",
+  "Страхование имущества": "https://widgets.inssmart.ru/contract/property?appId=34dad…&secret=ff27…",
+  "Путешествия":           "https://widgets.inssmart.ru/contract/travel?appId=a8bf5…&secret=95f2…"
 };
 
-// 5) Шаблон «нет онлайн-оформления»
+// 5) «Вне-виджетные» темы и ответ
+const outsideTriggers = [
+  'КАСКО ПО РИСКАМ','ТОТАЛ','УГОН',
+  'ДМС','СТРАХОВАНИЕ БИЗНЕСА'
+];
 const outsideWidgetResponse = `
-К сожалению, этот вид страхования не доступен онлайн.
-Свяжитесь с нами для подбора:
+К сожалению, этот вид страхования недоступен онлайн.
+Свяжитесь для подбора:
 
 📧 info@straxovka-go.ru  
 🌐 https://straxovka-go.ru  
 📱 WhatsApp: +7 989 120 66 37  
 
-Мы являемся операторами ПДн.  
-Политика конфиденциальности: https://straxovka-go.ru/privacy
+Мы — операторы ПДн. Политика: https://straxovka-go.ru/privacy
 `.trim();
 
-// 6) Триггеры «нет в виджетах»
-const outsideTriggers = ['ТОТАЛ','УГОН','КАСКО ПО РИСКАМ','ДМС','СТРАХОВАНИЕ БИЗНЕСА'];
+// 6) Ключевые слова для страховки
+const insuranceKeywords = [
+  'ОСАГО','КАСКО','ДМС','ИПОТЕКА',
+  'ИМУЩЕСТВО','СТРАХОВАНИЕ','ПОЛИС',
+  'ДОКУМЕНТ','ДТП'
+];
 
-// 7) Ключевые слова по теме
-const insuranceKeywords = ['ОСАГО','СТРАХОВКА','КАСКО','ДМС','ИПОТЕКА','ИМУЩЕСТВО','СТРАХОВАНИЕ','ПОЛИС','ДОКУМЕНТЫ','ДТП'];
-
-// 8) /start — главное меню
+// 7) /start — меню кнопок
 bot.start(ctx => {
   const keyboard = Object.keys(services).map(k => ([{ text: k }]));
   return ctx.reply(
-    '👋 Здравствуйте! Я помогу оформить страховку. Выберите услугу или задайте вопрос:',
+    '👋 Здравствуйте! Помогу оформить страховку. Выберите услугу или задайте вопрос:',
     { reply_markup:{ keyboard, resize_keyboard:true } }
   );
 });
 
-// 9) Webhook-handler для Telegraf
+// 8) Webhook-endpoint
 app.post('/webhook', (req, res) => {
   bot.handleUpdate(req.body, res).catch(console.error);
 });
 
-// 10) Обработка текстовых сообщений
+// 9) Обработка всех текстовых сообщений
 bot.on('text', async ctx => {
   const txt = ctx.message.text.trim();
+  const chatId = String(ctx.chat.id);
+  const upper = txt.toUpperCase();
 
-  // 10.1 — если нажали кнопку услуги
+  // 9.1 — кнопка-виджет
   if (services[txt]) {
     return ctx.replyWithHTML(
       `Перейдите по ссылке для оформления <b>${txt}</b>:`,
       { reply_markup:{ inline_keyboard:[
-          [{ text:'▶ Открыть виджет', url:services[txt] }]
+        [{ text:'▶ Открыть виджет', url:services[txt] }]
       ] } }
     );
   }
 
-  // 10.2 — «вне-виджетные» темы
-  const upper = txt.toUpperCase();
+  // 9.2 — «вне-виджетные» темы
   if (outsideTriggers.some(tr => upper.includes(tr))) {
     return ctx.reply(outsideWidgetResponse);
   }
 
-  // 10.3 — если сообщение не по страхованию, сразу контакты
+  // 9.3 — не про страхование → сразу контакты
   if (!insuranceKeywords.some(kw => upper.includes(kw))) {
     return ctx.reply(outsideWidgetResponse);
   }
 
-  // 10.4 — AI-ответ на специфические вопросы
-  const firstTime = !ctx.session.privacyMentioned;
-  let systemPrompt = `Ты — ассистент по страхованию Straxovka-Go. Отвечай коротко и по теме.`;
+  // 9.4 — AI-ответ по теме
+  const firstTime = !privacyMentioned.get(chatId);
+  let systemPrompt = `
+Ты — ассистент Straxovka-Go. Отвечай коротко и по теме.
+`;
   if (firstTime) {
     systemPrompt += `
-В этом ответе упомяни, что мы — операторы ПДн, и дай ссылку на политику: https://straxovka-go.ru/privacy`;
-    ctx.session.privacyMentioned = true;
+В этом ответе упомяни, что мы — операторы обработки персональных данных, 
+и дай ссылку на политику: https://straxovka-go.ru/privacy
+`;
+    privacyMentioned.set(chatId, true);
   } else {
-    systemPrompt += `\nНе упоминай политику конфиденциальности повторно.`;
+    systemPrompt += `\nНе упоминай политику повторно.`;
   }
 
   try {
     const resp = await openai.chat.completions.create({
-      model:       'openai/gpt-4o',
+      model:       'openai/gpt-3.5-turbo',
       messages:    [
         { role:'system', content:systemPrompt.trim() },
         { role:'user',   content:txt }
@@ -121,13 +132,13 @@ bot.on('text', async ctx => {
     return ctx.reply(resp.choices[0].message.content.trim());
   } catch (err) {
     console.error('OpenRouter Error:', err);
-    return ctx.reply('Упс, ошибка при обращении к модели. Попробуйте позже.');
+    return ctx.reply('Упс, ошибка при обращении к модели. Попробуйте чуть позже.');
   }
 });
 
-// 11) Запуск сервера + регистрация webhook
+// 10) Запуск сервера + webhook
 app.listen(PORT, async () => {
-  console.log(`🌐 HTTP server listening on port ${PORT}`);
+  console.log(`🌐 HTTP server on port ${PORT}`);
   await bot.telegram.setWebhook(`${DOMAIN}/webhook`);
   console.log(`✅ Webhook registered at ${DOMAIN}/webhook`);
 });

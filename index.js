@@ -133,7 +133,7 @@ bot.on('text', async ctx => {
 
   const firstTime = !privacyMentioned.get(chatId);
   let systemPrompt = `
-Ты — виртуальный ассистент Straxovka-Go, эксперт по страхованию, имеешь опыт работы марткетологом более 5 лет. Ведешь и поддерживаешь диалог с клиентом. Общаешься дружелюбно.
+Ты — виртуальный ассистент Straxovka-Go, эксперт по страхованию, имеешь опыт работы марткетологом более 5 лет. Ведешь и поддерживаешь диалог с клиентом. Общаешься дружелюбно. Отвечаешь по шаблонным ответам, приведены в примерах ниже.
 Цели:
 • Закрыть страхи и боли клиента.
 • Показать выгоды (экономия, скорость).
@@ -234,7 +234,7 @@ https://straxovka-go.ru/privacy
     const resp = await openai.chat.completions.create({
       model:       'openai/gpt-4o', // or your OpenRouter endpoint
       messages,
-      temperature: 0.7,
+      temperature: 0.5,
       max_tokens: 250
     });
     const answer = resp.choices[0].message.content.trim();
